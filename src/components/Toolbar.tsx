@@ -3,6 +3,7 @@ import type { ToolType } from '../types';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { triggerSpaceClown } from '../rendering/spaceClown';
+import { RepositoryLink } from './RepositoryLink';
 import {
   faHandPaper,
   faPaintBrush,
@@ -95,6 +96,7 @@ export const Toolbar: React.FC<Props> = ({ activeTool, onSelectTool }) => {
       </div>
 
       <div className="mt-auto pb-2">
+        <RepositoryLink variant="toolbar" label="GitHub" />
         <button
           onClick={() => triggerSpaceClown(window.innerWidth, window.innerHeight)}
           className="flex flex-col items-center justify-center w-full py-2 text-[10px] cursor-pointer border-none bg-transparent text-muted hover:bg-hover hover:text-primary gap-0.5"
