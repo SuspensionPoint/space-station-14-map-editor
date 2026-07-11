@@ -11,6 +11,31 @@ import { statsSetVisibleEntities, statsSetLodActive, statsAddDrawCalls } from '.
 
 const TILE_SIZE = 32;
 
+export interface CenteredSpriteRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Scale a sprite from source pixels to screen pixels and center it on its entity tile. */
+export function getCenteredSpriteRect(
+  screenX: number,
+  screenY: number,
+  tileScreenSize: number,
+  spriteWidth: number,
+  spriteHeight: number,
+): CenteredSpriteRect {
+  const width = tileScreenSize * (spriteWidth / TILE_SIZE);
+  const height = tileScreenSize * (spriteHeight / TILE_SIZE);
+  return {
+    x: screenX + (tileScreenSize - width) / 2,
+    y: screenY + (tileScreenSize - height) / 2,
+    width,
+    height,
+  };
+}
+
 // ---- DrawDepth values (from Content.Shared/DrawDepth/DrawDepth.cs) ----
 
 const DRAW_DEPTH_VALUES: Record<string, number> = {
@@ -968,20 +993,22 @@ export function renderEntities(
     // Sprites larger than one tile (64x64 vehicles etc.) draw at their native
     // RSI size centered on the tile, matching in-game rendering, instead of
     // being squeezed into a single tile.
-    const dw = tileScreenSize * (sprite.sw / TILE_SIZE);
-    const dh = tileScreenSize * (sprite.sh / TILE_SIZE);
-    const dx = screenX + (tileScreenSize - dw) / 2;
-    const dy = screenY + (tileScreenSize - dh) / 2;
+    const spriteRect = getCenteredSpriteRect(
+      screenX, screenY, tileScreenSize, sprite.sw, sprite.sh,
+    );
 
     const tinted = tintColor ? getTintedSprite(sprite, tintColor) : null;
 
     if (tinted) {
-      ctx.drawImage(tinted, dx, dy, dw, dh);
+      ctx.drawImage(
+        tinted,
+        spriteRect.x, spriteRect.y, spriteRect.width, spriteRect.height,
+      );
     } else {
       ctx.drawImage(
         sprite.image,
         sprite.sx, sprite.sy, sprite.sw, sprite.sh,
-        dx, dy, dw, dh,
+        spriteRect.x, spriteRect.y, spriteRect.width, spriteRect.height,
       );
     }
 
@@ -994,12 +1021,13 @@ export function renderEntities(
       const extraLayers = getExtraLayers(prototype, direction, registry);
       if (extraLayers) {
         for (const layerSprite of extraLayers) {
-          const lw = tileScreenSize * (layerSprite.sw / TILE_SIZE);
-          const lh = tileScreenSize * (layerSprite.sh / TILE_SIZE);
+          const layerRect = getCenteredSpriteRect(
+            screenX, screenY, tileScreenSize, layerSprite.sw, layerSprite.sh,
+          );
           ctx.drawImage(
             layerSprite.image,
             layerSprite.sx, layerSprite.sy, layerSprite.sw, layerSprite.sh,
-            screenX + (tileScreenSize - lw) / 2, screenY + (tileScreenSize - lh) / 2, lw, lh,
+            layerRect.x, layerRect.y, layerRect.width, layerRect.height,
           );
         }
       }

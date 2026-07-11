@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { EntityPlaceTool } from '../entityPlaceTool';
 import type { ToolContext } from '../toolTypes';
 import { createInitialState } from '../../state/editorState';
+import * as entityRenderer from '../../rendering/entityRenderer';
 
 function makeToolContext(): { ctx: ToolContext; dispatched: any[] } {
   const dispatched: any[] = [];
@@ -33,6 +34,10 @@ function makeToolContext(): { ctx: ToolContext; dispatched: any[] } {
 }
 
 describe('EntityPlaceTool', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('ToolContext includes shiftHeld property', () => {
     const { ctx } = makeToolContext();
     expect(ctx.shiftHeld).toBe(false);
@@ -126,16 +131,24 @@ describe('EntityPlaceTool', () => {
   });
 
   describe('renderPreview sprite ghost', () => {
-    it('draws sprite image when registry provides sprite', () => {
+    it('draws a 64x64 sprite at its natural size, centered on the target tile', () => {
       const tool = new EntityPlaceTool();
       const { ctx } = makeToolContext();
-
-      // We can't easily test canvas drawing, but we can verify the method
-      // doesn't throw and accepts the correct parameters
+      const image = { height: 64 } as HTMLImageElement;
+      ctx.state.registry = {} as ToolContext['state']['registry'];
+      vi.spyOn(entityRenderer, 'getEntitySprite').mockReturnValue({
+        image,
+        sx: 0,
+        sy: 0,
+        sw: 64,
+        sh: 64,
+      });
+      const drawImage = vi.fn();
+      const fillText = vi.fn();
       const mockCtx = {
         save: () => {},
         restore: () => {},
-        drawImage: () => {},
+        drawImage,
         strokeStyle: '',
         lineWidth: 0,
         globalAlpha: 1,
@@ -149,11 +162,17 @@ describe('EntityPlaceTool', () => {
         fillStyle: '',
         textAlign: '',
         textBaseline: '',
-        fillText: () => {},
+        fillText,
       } as unknown as CanvasRenderingContext2D;
 
-      // Should not throw
       tool.renderPreview(mockCtx, ctx, 5, 10);
+
+      expect(drawImage).toHaveBeenCalledWith(
+        image,
+        0, 0, 64, 64,
+        144, 304, 64, 64,
+      );
+      expect(fillText).toHaveBeenCalledWith('APCBasic', 176, 370);
     });
 
     it('falls back to dashed rect when no registry', () => {

@@ -10,6 +10,7 @@ import {
   getPrototypeFlags, clearPrototypeFlags,
   hasSubFloorHide,
   hasCableConnectionAt,
+  getCenteredSpriteRect,
 } from '../entityRenderer';
 import { rebuildSpatialIndex, clearSpatialIndex, spatialGeneration, tileKey } from '../spatialIndex';
 import type { ImportedEntity } from '../../import/mapImporter';
@@ -99,6 +100,35 @@ describe('entity draw position (center to top-left conversion)', () => {
     const centerDrawX = camera.worldToScreenX(5.5 - 0.5, canvasW);
     // Difference: (4.8 - 5.0) = -0.2 tiles = -12.8px at zoom 2
     expect(fractionalDrawX - centerDrawX).toBeCloseTo(-0.2 * 32 * 2, 5);
+  });
+});
+
+describe('natural sprite sizing', () => {
+  it('keeps a 32x32 sprite aligned to one tile', () => {
+    expect(getCenteredSpriteRect(160, 320, 32, 32, 32)).toEqual({
+      x: 160,
+      y: 320,
+      width: 32,
+      height: 32,
+    });
+  });
+
+  it('centers a 64x64 sprite across two tiles', () => {
+    expect(getCenteredSpriteRect(160, 320, 32, 64, 64)).toEqual({
+      x: 144,
+      y: 304,
+      width: 64,
+      height: 64,
+    });
+  });
+
+  it('preserves non-square sprite dimensions', () => {
+    expect(getCenteredSpriteRect(160, 320, 64, 64, 96)).toEqual({
+      x: 128,
+      y: 256,
+      width: 128,
+      height: 192,
+    });
   });
 });
 
