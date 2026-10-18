@@ -2,7 +2,7 @@ import type { ITool, ToolContext } from './toolTypes';
 import type { ImportedEntity } from '../import/mapImporter';
 import type { CardinalDirection } from '../types';
 import { buildTransformComponent, normalizeRotation } from './entityHelpers';
-import { getEntitySprite } from '../rendering/entityRenderer';
+import { getCenteredSpriteRect, getEntitySprite } from '../rendering/entityRenderer';
 
 function rotToDir(rotation: number): CardinalDirection {
   const TWO_PI = 2 * Math.PI;
@@ -81,9 +81,13 @@ export class EntityPlaceTool implements ITool {
 
     // Try to draw entity sprite as ghost preview
     let drewSprite = false;
+    let previewBottom = drawY + tileScreenSize;
     if (state.registry) {
       const sprite = getEntitySprite(protoId, direction, state.registry);
       if (sprite) {
+        const spriteRect = getCenteredSpriteRect(
+          drawX, drawY, tileScreenSize, sprite.sw, sprite.sh,
+        );
         const needsRotation = this.currentRotation !== 0 && sprite.sh === sprite.image.height;
         canvasCtx.save();
         canvasCtx.globalAlpha = 0.5;
@@ -97,10 +101,11 @@ export class EntityPlaceTool implements ITool {
         canvasCtx.drawImage(
           sprite.image,
           sprite.sx, sprite.sy, sprite.sw, sprite.sh,
-          drawX, drawY, tileScreenSize, tileScreenSize,
+          spriteRect.x, spriteRect.y, spriteRect.width, spriteRect.height,
         );
         canvasCtx.restore();
         drewSprite = true;
+        previewBottom = Math.max(previewBottom, spriteRect.y + spriteRect.height);
       }
     }
 
@@ -143,7 +148,7 @@ export class EntityPlaceTool implements ITool {
       canvasCtx.textAlign = 'center';
       canvasCtx.textBaseline = 'top';
       const label = shiftHeld ? `${protoId} (free)` : protoId;
-      canvasCtx.fillText(label, drawX + tileScreenSize / 2, drawY + tileScreenSize + 2);
+      canvasCtx.fillText(label, drawX + tileScreenSize / 2, previewBottom + 2);
     }
   }
 
