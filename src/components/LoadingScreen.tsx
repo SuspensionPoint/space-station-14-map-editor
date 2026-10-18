@@ -1,4 +1,5 @@
 import React from 'react';
+import { RepositoryLink } from './RepositoryLink';
 
 interface Props {
   message: string;
@@ -18,6 +19,8 @@ export const LoadingScreen: React.FC<Props> = ({ message }) => {
       <div className="text-[13px] text-muted">
         {message}
       </div>
+
+      <RepositoryLink className="absolute bottom-4 right-5" />
 
       <style>{`
         @keyframes loading-pulse {

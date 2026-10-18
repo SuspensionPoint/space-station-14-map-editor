@@ -12,6 +12,7 @@ import {
   summarizeRepository,
 } from '../loaders/directoryScanner';
 import type { RepositorySummary } from '../loaders/directoryScanner';
+import { RepositoryLink } from './RepositoryLink';
 
 type SelectorState = 'idle' | 'scanning' | 'summary' | 'error';
 
@@ -505,6 +506,10 @@ export const ForkSelector: React.FC<ForkSelectorProps> = ({
             </button>
           </div>
         )}
+
+        <div className="mt-6 border-t border-subtle pt-5">
+          <RepositoryLink variant="button" label="View project on GitHub" />
+        </div>
       </div>
     </div>
   );
