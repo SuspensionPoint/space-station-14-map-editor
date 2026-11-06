@@ -277,6 +277,8 @@ export const App: React.FC = () => {
         mapUid: state.mapUid,
         maps: state.maps,
         grids: state.gridUidList,
+        orphans: state.orphans,
+        nullspace: state.nullspace,
         gridDataList: state.grids,
         structuralEntityData: state.structuralEntityData,
         entityRawComponents: state.entityRawComponents,
@@ -291,7 +293,7 @@ export const App: React.FC = () => {
     } catch (err) {
       setStatusMessage(`Export failed: ${err}`);
     }
-  }, [state.grid, state.entities, state.containedEntities, state.meta, state.gridUid, state.mapUid, state.tilemap, state.maps, state.gridUidList, state.grids, state.structuralEntityData, state.entityRawComponents, state.entityRawPreamble, state.chunkKeyOrder, state.lineEnding, state.hasDocumentTerminator, state.entityOrder]);
+  }, [state.grid, state.entities, state.containedEntities, state.meta, state.gridUid, state.mapUid, state.tilemap, state.maps, state.gridUidList, state.orphans, state.nullspace, state.grids, state.structuralEntityData, state.entityRawComponents, state.entityRawPreamble, state.chunkKeyOrder, state.lineEnding, state.hasDocumentTerminator, state.entityOrder]);
 
   const handleUndo = useCallback(() => dispatch({ type: 'UNDO' }), []);
   const handleRedo = useCallback(() => dispatch({ type: 'REDO' }), []);

@@ -39,6 +39,10 @@ export interface EditorState {
   maps?: number[];
   /** Grid UID list from the YAML file's top-level `grids:` key */
   gridUidList?: number[];
+  /** UIDs from the YAML file's top-level `orphans:` key */
+  orphans?: number[];
+  /** UIDs from the YAML file's top-level `nullspace:` key */
+  nullspace?: number[];
   structuralEntityData?: Record<number, Record<string, unknown>[]>;
   entityRawComponents?: Record<number, string[]>;
   entityRawPreamble?: Record<number, string[]>;

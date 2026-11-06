@@ -490,4 +490,41 @@ entities:
       expect(reimported.grid.cells[0].variant ?? 0).toBe(0);
     });
   });
+
+  describe('format 7 top-level sections', () => {
+    function makeGridFileMap(): ImportedMap {
+      const map = makeMinimalMap();
+      map.meta = { format: 7, postmapinit: false, category: 'Grid' };
+      map.maps = [];
+      map.grids = [1];
+      map.orphans = [1];
+      return map;
+    }
+
+    it('writes empty lists as [] rather than a bare key', () => {
+      const exported = exportMap(makeGridFileMap());
+      expect(exported).toMatch(/^maps: \[\]$/m);
+      expect(exported).not.toMatch(/^maps:$/m);
+    });
+
+    it('preserves orphans so standalone grid files keep their root grid', () => {
+      const reimported = importMap(exportMap(makeGridFileMap()));
+      expect(reimported.maps).toEqual([]);
+      expect(reimported.orphans).toEqual([1]);
+    });
+
+    it('preserves nullspace and drops UIDs of deleted entities', () => {
+      const map = makeGridFileMap();
+      map.nullspace = [100, 999]; // 999 no longer exists
+      const reimported = importMap(exportMap(map));
+      expect(reimported.nullspace).toEqual([100]);
+    });
+
+    it('roundtrips orphans and nullspace from a file', () => {
+      const original = importMap(exportMap({ ...makeGridFileMap(), nullspace: [100] }));
+      const again = importMap(exportMap(original));
+      expect(again.orphans).toEqual([1]);
+      expect(again.nullspace).toEqual([100]);
+    });
+  });
 });
