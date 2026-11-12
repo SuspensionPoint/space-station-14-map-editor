@@ -47,6 +47,10 @@ export interface ImportedMap {
   maps?: number[];
   /** Top-level grids array (format 7+) */
   grids?: number[];
+  /** Top-level orphans array (format 7+), e.g. the root grid of a standalone grid file */
+  orphans?: number[];
+  /** Top-level nullspace array (format 7+), e.g. decal ChunkEntity holders */
+  nullspace?: number[];
   /** Structural entity components preserved verbatim for roundtrip */
   structuralEntityData?: Record<number, Record<string, unknown>[]>;
   /** Original chunk key ordering for roundtrip fidelity */
@@ -123,6 +127,8 @@ export function importMap(yamlContent: string): ImportedMap {
   // Preserve format 7+ top-level keys
   const maps: number[] | undefined = Array.isArray(doc.maps) ? doc.maps : undefined;
   const grids: number[] | undefined = Array.isArray(doc.grids) ? doc.grids : undefined;
+  const orphans: number[] | undefined = Array.isArray(doc.orphans) ? doc.orphans : undefined;
+  const nullspace: number[] | undefined = Array.isArray(doc.nullspace) ? doc.nullspace : undefined;
 
   // Detect line ending style
   const lineEnding = yamlContent.includes('\r\n') ? '\r\n' : '\n';
@@ -133,7 +139,7 @@ export function importMap(yamlContent: string): ImportedMap {
   // Detect YAML document terminator `...` at end of file
   const hasDocumentTerminator = /^\.\.\.\s*$/m.test(yamlContent.split(/\r?\n/).slice(-3).join('\n'));
 
-  return { meta, tilemap, grid, entities, containedEntities, gridUid, mapUid, maps, grids, structuralEntityData, chunkKeyOrder, lineEnding, entityRawComponents, entityRawPreamble, hasDocumentTerminator, entityOrder, gridDataList };
+  return { meta, tilemap, grid, entities, containedEntities, gridUid, mapUid, maps, grids, orphans, nullspace, structuralEntityData, chunkKeyOrder, lineEnding, entityRawComponents, entityRawPreamble, hasDocumentTerminator, entityOrder, gridDataList };
 }
 
 // ---- Meta ----

@@ -55,16 +55,14 @@ export function exportMap(map: ImportedMap, decalsDirty?: Set<number>): string {
 
   // Format 7+ top-level keys
   if (format >= 7) {
-    lines.push('maps:');
-    for (const uid of (map.maps ?? [map.mapUid])) {
-      lines.push(`- ${uid}`);
-    }
-    lines.push('grids:');
-    for (const uid of (map.grids ?? [map.gridUid])) {
-      lines.push(`- ${uid}`);
-    }
-    lines.push('orphans: []');
-    lines.push('nullspace: []');
+    // orphans/nullspace must be preserved: SS14 uses orphans to find the root grid of a
+    // standalone grid file, and nullspace to place entities such as decal ChunkEntity holders.
+    // Drop UIDs whose entities were deleted in the editor.
+    const exportedUids = collectExportedUids(map);
+    pushUidList(lines, 'maps', map.maps ?? [map.mapUid]);
+    pushUidList(lines, 'grids', map.grids ?? [map.gridUid]);
+    pushUidList(lines, 'orphans', (map.orphans ?? []).filter(uid => exportedUids.has(uid)));
+    pushUidList(lines, 'nullspace', (map.nullspace ?? []).filter(uid => exportedUids.has(uid)));
   }
 
   // Tilemap, Space first (index 0), then remaining sorted by name (matching SS14 engine)
@@ -198,6 +196,34 @@ function getAllGridCells(map: ImportedMap): import('../types').TileCell[] {
     return allCells;
   }
   return map.grid.cells;
+}
+
+/** Emit a top-level UID list. Empty lists must be written as `[]`, since a bare key is read as null. */
+function pushUidList(lines: string[], key: string, uids: number[]): void {
+  if (uids.length === 0) {
+    lines.push(`${key}: []`);
+    return;
+  }
+  lines.push(`${key}:`);
+  for (const uid of uids) {
+    lines.push(`- ${uid}`);
+  }
+}
+
+/** Collect the UIDs of every entity that will be written to the file. */
+function collectExportedUids(map: ImportedMap): Set<number> {
+  const uids = new Set<number>(getAllEntities(map).map(e => e.uid));
+  for (const children of Object.values(getAllContainedEntities(map))) {
+    for (const child of children) uids.add(child.uid);
+  }
+  if (map.structuralEntityData) {
+    for (const uidStr of Object.keys(map.structuralEntityData)) uids.add(Number(uidStr));
+  } else {
+    // Fallback path emits a default map and grid entity
+    uids.add(map.mapUid);
+    uids.add(map.gridUid);
+  }
+  return uids;
 }
 
 /** Collect all non-structural entities across all grids (or fall back to legacy). */
