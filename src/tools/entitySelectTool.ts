@@ -8,7 +8,7 @@ import type { SpriteDrawInfo } from '../loaders/rsiLoader';
 import { markOverlayDirty } from '../rendering/dirtyFlags';
 import { spatialGetAt, spatialGetInRect, spatialGetByUid } from '../rendering/spatialIndex';
 import { getDecalSprite } from '../rendering/decalRenderer';
-import { updateTransformPos, updateTransformRot, normalizeRotation, cloneComponentsWithPosRot } from './entityHelpers';
+import { updateTransformPos, updateTransformRot, normalizeRotation, cloneComponentsWithPosRot, collectContained, instantiateCopies } from './entityHelpers';
 import { getClipboard, setClipboard } from '../state/clipboard';
 import type { ClipboardData, ClipboardEntity, ClipboardDecal } from '../state/clipboard';
 
@@ -519,24 +519,20 @@ export class EntitySelectTool implements ITool {
     if (selectedEntities.length === 0 && decalChanges.length === 0) return;
 
     const entityChanges: { action: 'add' | 'remove'; entity: ImportedEntity }[] = [];
-    const newUids: number[] = [];
-    let nextUid = state.nextEntityId;
 
+    // Moved entities keep their UIDs so links and contents still point at them
     for (const entity of selectedEntities) {
-      const newUid = nextUid++;
       const newPos = {
         x: entity.position.x + dx,
         y: entity.position.y + dy,
       };
       const moved: ImportedEntity = {
         ...entity,
-        uid: newUid,
         position: newPos,
         components: updateTransformPos(entity.components, newPos),
       };
       entityChanges.push({ action: 'remove', entity });
       entityChanges.push({ action: 'add', entity: moved });
-      newUids.push(newUid);
     }
 
     const hasDecalMoves = this.moveSnapshotDecals.length > 0;
@@ -557,10 +553,6 @@ export class EntitySelectTool implements ITool {
       command: { label, tileChanges: [], entityChanges, decalChanges: decalChanges.length > 0 ? decalChanges : undefined },
     });
 
-    // Update selection to track the new UIDs (decals keep same IDs via update)
-    if (newUids.length > 0) {
-      ctx.dispatch({ type: 'SELECT_ENTITY', uids: newUids });
-    }
     this.moveSnapshotDecals = [];
     this.lastClickTile = { x: tileX, y: tileY };
   }
@@ -594,6 +586,7 @@ export class EntitySelectTool implements ITool {
     const h = maxY - minY + 1;
 
     const clipEntities: ClipboardEntity[] = selected.map(e => ({
+      uid: e.uid,
       dx: e.position.x - minX,
       dy: e.position.y - minY,
       prototype: e.prototype,
@@ -634,6 +627,7 @@ export class EntitySelectTool implements ITool {
       width: Math.max(w, clipW), height: Math.max(h, clipH),
       tiles: new Array(Math.max(w, clipW) * Math.max(h, clipH)).fill(null),
       entities: clipEntities,
+      contained: collectContained(ctx.state.containedEntities, selected.map(e => e.uid)),
       decals: clipDecals,
       originX: Math.min(minX, clipMinX), originY: Math.min(minY, clipMinY),
     });
@@ -707,21 +701,21 @@ export class EntitySelectTool implements ITool {
   private commitPaste(ctx: ToolContext) {
     if (!this.pasteData) return;
 
-    const entityChanges: { action: 'add' | 'remove'; entity: ImportedEntity }[] = [];
-    let nextUid = ctx.state.nextEntityId;
-
-    for (const ce of this.pasteData.entities) {
+    const copies = instantiateCopies(this.pasteData.entities.map(ce => {
       const newPos = { x: this.pasteX + ce.dx, y: this.pasteY + ce.dy };
-      const entity: ImportedEntity = {
-        uid: nextUid++,
-        prototype: ce.prototype,
-        position: newPos,
-        rotation: ce.rotation,
-        components: cloneComponentsWithPosRot(ce.components, newPos, ce.rotation),
-        ...(ce.spriteStateOverride ? { spriteStateOverride: ce.spriteStateOverride } : {}),
+      return {
+        sourceUid: ce.uid,
+        entity: {
+          prototype: ce.prototype,
+          position: newPos,
+          rotation: ce.rotation,
+          components: cloneComponentsWithPosRot(ce.components, newPos, ce.rotation),
+          ...(ce.spriteStateOverride ? { spriteStateOverride: ce.spriteStateOverride } : {}),
+        },
       };
-      entityChanges.push({ action: 'add', entity });
-    }
+    }), this.pasteData.contained, ctx.state.nextEntityId);
+    const entityChanges: { action: 'add' | 'remove'; entity: ImportedEntity }[] =
+      copies.entities.map(entity => ({ action: 'add', entity }));
 
     // Paste decals with new IDs
     const decalChanges: DecalChange[] = [];
@@ -751,6 +745,7 @@ export class EntitySelectTool implements ITool {
           label: `Paste ${totalCount} items`,
           tileChanges: [],
           entityChanges,
+          containedEntityChanges: copies.containedChanges.length > 0 ? copies.containedChanges : undefined,
           decalChanges: decalChanges.length > 0 ? decalChanges : undefined,
         },
       });

@@ -3,6 +3,8 @@ import type { ImportedEntity } from '../import/mapImporter';
 
 /** Entity stored relative to selection origin (dx, dy offsets from originX, originY). */
 export interface ClipboardEntity {
+  /** UID of the entity this was taken from */
+  uid?: number;
   /** Offset from clipboard origin */
   dx: number;
   dy: number;
@@ -28,6 +30,8 @@ export interface ClipboardData {
   height: number;
   tiles: (TileCell | null)[];  // row-major, null = empty/space
   entities: ClipboardEntity[];
+  /** What the copied entities contain, keyed by the UID of the container. */
+  contained?: Record<number, ImportedEntity[]>;
   decals?: ClipboardDecal[];
   originX: number; // world coords of top-left when copied
   originY: number;

@@ -8,7 +8,7 @@ import type { ClipboardData, ClipboardEntity, ClipboardDecal } from '../state/cl
 import type { ContextMenuItem } from '../components/ContextMenu';
 import { serializePrefab } from '../prefab/prefabSerializer';
 import { downloadPrefab } from '../prefab/prefabIO';
-import { updateTransformPos, updateTransformRot, normalizeRotation, cloneComponentsWithPos, cloneComponentsWithPosRot } from './entityHelpers';
+import { updateTransformPos, updateTransformRot, normalizeRotation, cloneComponentsWithPos, cloneComponentsWithPosRot, collectContained, instantiateCopies } from './entityHelpers';
 import { markOverlayDirty } from '../rendering/dirtyFlags';
 import { spatialGetInRect, tileKey } from '../rendering/spatialIndex';
 
@@ -209,6 +209,7 @@ export class SelectTool implements ITool {
     const selEntities = this.getEntitiesInSelection(ctx.state.entities);
     for (const e of selEntities) {
       clipEntities.push({
+        uid: e.uid,
         dx: e.position.x - bounds.minX,
         dy: e.position.y - bounds.minY,
         prototype: e.prototype,
@@ -235,6 +236,7 @@ export class SelectTool implements ITool {
 
     setClipboard({
       width: w, height: h, tiles, entities: clipEntities, decals: clipDecals,
+      contained: collectContained(ctx.state.containedEntities, selEntities.map(e => e.uid)),
       originX: bounds.minX, originY: bounds.minY,
     });
   }
@@ -316,6 +318,7 @@ export class SelectTool implements ITool {
     // Capture entities as relative offsets
     const selEntities = this.getEntitiesInSelection(ctx.state.entities);
     const clipEntities: ClipboardEntity[] = selEntities.map(e => ({
+      uid: e.uid,
       dx: e.position.x - this.selMinX,
       dy: e.position.y - this.selMinY,
       prototype: e.prototype,
@@ -394,13 +397,12 @@ export class SelectTool implements ITool {
       entityChanges.push({ action: 'remove', entity: e });
     }
 
-    // Add rotated entities with new UIDs
-    let nextUid = ctx.state.nextEntityId;
+    // Add rotated entities under the same UIDs
     for (const ce of rotated.entities) {
       const newPos = { x: newMinX + ce.dx, y: newMinY + ce.dy };
       const comps = cloneComponentsWithPosRot(ce.components, newPos, ce.rotation);
       const entity: ImportedEntity = {
-        uid: nextUid++,
+        uid: ce.uid!,
         prototype: ce.prototype,
         position: newPos,
         rotation: ce.rotation,
@@ -571,21 +573,21 @@ export class SelectTool implements ITool {
       }
     }
 
-    // Entity changes, assign new UIDs
-    const entityChanges: EntityChange[] = [];
-    let nextUid = ctx.state.nextEntityId;
-    for (const ce of entities) {
+    // Entity changes, assign new UIDs and link the copies to each other
+    const copies = instantiateCopies(entities.map(ce => {
       const newPos = { x: this.pasteX + ce.dx, y: this.pasteY + ce.dy };
-      const entity: ImportedEntity = {
-        uid: nextUid++,
-        prototype: ce.prototype,
-        position: newPos,
-        rotation: ce.rotation,
-        components: cloneComponentsWithPos(ce.components, newPos),
-        ...(ce.spriteStateOverride ? { spriteStateOverride: ce.spriteStateOverride } : {}),
+      return {
+        sourceUid: ce.uid,
+        entity: {
+          prototype: ce.prototype,
+          position: newPos,
+          rotation: ce.rotation,
+          components: cloneComponentsWithPos(ce.components, newPos),
+          ...(ce.spriteStateOverride ? { spriteStateOverride: ce.spriteStateOverride } : {}),
+        },
       };
-      entityChanges.push({ action: 'add', entity });
-    }
+    }), this.pasteData.contained, ctx.state.nextEntityId);
+    const entityChanges: EntityChange[] = copies.entities.map(entity => ({ action: 'add', entity }));
 
     // Decal changes, assign new IDs
     const decalChanges: DecalChange[] = [];
@@ -614,6 +616,7 @@ export class SelectTool implements ITool {
           label: 'Paste',
           tileChanges,
           entityChanges,
+          containedEntityChanges: copies.containedChanges.length > 0 ? copies.containedChanges : undefined,
           decalChanges: decalChanges.length > 0 ? decalChanges : undefined,
         },
       });
@@ -712,12 +715,11 @@ export class SelectTool implements ITool {
       entityChanges.push({ action: 'remove', entity: e });
     }
 
-    // 4. Add entities at new positions with new UIDs
-    let nextUid = ctx.state.nextEntityId;
+    // 4. Add entities at new positions, keeping their UIDs so links and contents still point at them
     for (const e of this.moveSnapshotEntities) {
       const newPos = { x: e.position.x + dx, y: e.position.y + dy };
       const moved: ImportedEntity = {
-        uid: nextUid++,
+        uid: e.uid,
         prototype: e.prototype,
         position: newPos,
         rotation: e.rotation,
@@ -790,6 +792,7 @@ export class SelectTool implements ITool {
             maxY: this.selMaxY,
             grid: ctx.state.grid,
             entities: ctx.state.entities,
+            containedEntities: ctx.state.containedEntities,
             entityRawComponents: ctx.state.entityRawComponents ?? {},
           });
           downloadPrefab(prefab, name);

@@ -371,7 +371,7 @@ describe('EntitySelectTool', () => {
     expect(moveCmd.command.entityChanges).toHaveLength(4);
   });
 
-  it('move assigns new UIDs so undo restores entities correctly', () => {
+  it('move keeps UIDs and undo restores entities correctly', () => {
     const tool = new EntitySelectTool();
     const e1 = makeEntity(1, 'WallSolid', 5, 5);
     const e2 = makeEntity(2, 'APC', 6, 5);
@@ -405,10 +405,9 @@ describe('EntitySelectTool', () => {
     tool.onMouseMove(ctx, 8, 8);
     tool.onMouseUp(ctx, 8, 8);
 
-    // After move: originals removed, new entities at new positions
+    // After move: the same entities at new positions
     expect(state.entities).toHaveLength(2);
-    expect(state.entities.find(e => e.uid === 1)).toBeUndefined();
-    expect(state.entities.find(e => e.uid === 2)).toBeUndefined();
+    expect(state.entities.map(e => e.uid).sort()).toEqual([1, 2]);
 
     const movedWall = state.entities.find(e => e.prototype === 'WallSolid')!;
     expect(movedWall.position.x).toBeCloseTo(8.5);

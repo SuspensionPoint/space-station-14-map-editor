@@ -19,6 +19,7 @@ A `.prefab.json` file containing a self-contained room/region:
   ],
   "entities": [
     {
+      "uid": 412,
       "dx": 2, "dy": 1,
       "prototype": "OperatingTable",
       "rotation": 0,
@@ -26,6 +27,9 @@ A `.prefab.json` file containing a self-contained room/region:
       "rawYamlLines": ["    - type: Transform"]
     }
   ],
+  "contained": {
+    "412": [{ "uid": 413, "prototype": "Scalpel", "position": { "x": 0, "y": 0 }, "rotation": 0, "components": [] }]
+  },
   "deviceLinks": [
     { "sourceIdx": 0, "targetIdx": 1, "port": "Pressed", "sink": "Toggle" }
   ]
@@ -39,6 +43,8 @@ Key design points:
 - **Relative offsets**, All `dx`/`dy` values are integer tile offsets from the prefab's top-left corner. Entity positions are stored as `Math.floor(position) - minBound`.
 - **Raw YAML lines**, `rawYamlLines` on entities carry verbatim YAML for byte-exact export roundtrip. On placement, these are stored in `entityRawComponents` so the exporter emits them unchanged.
 - **Index-based device links**, Links reference entities by array index, not UIDs. New UIDs are assigned when the prefab is stamped.
+- **Source UIDs**, `uid` is the UID each entity had in the map the prefab was saved from. On placement it is used to point UIDs inside components (`DeviceList.devices`, `DeviceNetwork.deviceLists`, `DeviceLinkSource.linkedPorts`, container `ents`) at the placed entities. References to anything outside the prefab are dropped. Files saved before this field existed have every such reference dropped.
+- **Container contents**, `contained` holds what the prefab's entities contain, keyed by the container's `uid`, to any depth. Contents are placed with fresh UIDs inside the placed containers.
 - **Device link serialization**, Uses `DeviceLinkSource.linkedPorts` (not `DeviceList.devices`) to capture port/sink pairs. Each entry in `linkedPorts` maps a target UID to an array of `[port, sink]` pairs.
 - **Entity position on placement**, When stamped, entity world position is `placeX + dx + 0.5, placeY + dy + 0.5` (center of tile).
 

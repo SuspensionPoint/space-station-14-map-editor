@@ -2,6 +2,7 @@ import type { TileGrid } from '../types';
 import type { ImportedEntity } from '../import/mapImporter';
 import type { PrefabData, PrefabTile, PrefabEntity, PrefabDeviceLink } from './prefabTypes';
 import { getCell } from '../state/editorState';
+import { collectContained } from '../tools/entityHelpers';
 
 export interface SerializePrefabInput {
   name: string;
@@ -11,6 +12,7 @@ export interface SerializePrefabInput {
   maxY: number;
   grid: TileGrid;
   entities: ImportedEntity[];
+  containedEntities?: Record<number, ImportedEntity[]>;
   entityRawComponents: Record<number, string[]>;
 }
 
@@ -51,6 +53,7 @@ export function serializePrefab(input: SerializePrefabInput): PrefabData {
     const tileX = Math.floor(ent.position.x);
     const tileY = Math.floor(ent.position.y);
     const pe: PrefabEntity = {
+      uid: ent.uid,
       dx: tileX - minX,
       dy: tileY - minY,
       prototype: ent.prototype,
@@ -88,5 +91,7 @@ export function serializePrefab(input: SerializePrefabInput): PrefabData {
     }
   }
 
-  return { name, width, height, tiles, entities: prefabEntities, deviceLinks };
+  const contained = collectContained(input.containedEntities ?? {}, insideEntities.map(e => e.uid));
+
+  return { name, width, height, tiles, entities: prefabEntities, contained, deviceLinks };
 }

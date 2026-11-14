@@ -5,7 +5,11 @@ import {
   updateTransformRot,
   cloneComponentsWithPos,
   cloneComponentsWithPosRot,
+  remapEntityReferences,
+  collectContained,
+  instantiateCopies,
 } from '../entityHelpers';
+import type { ImportedEntity } from '../../import/mapImporter';
 
 describe('normalizeRotation', () => {
   it('normalizes negative values', () => {
@@ -163,5 +167,103 @@ describe('cloneComponentsWithPosRot', () => {
     const result = cloneComponentsWithPosRot(components, { x: 5.5, y: 5.5 }, Math.PI);
     expect(result[0]).not.toBe(components[0]);
     expect(result[1]).not.toBe(components[1]);
+  });
+});
+
+describe('remapEntityReferences', () => {
+  const uidMap = new Map([[10, 110], [11, 111]]);
+
+  it('points device lists at the copies and drops the rest', () => {
+    const [list, network] = remapEntityReferences([
+      { type: 'DeviceList', devices: [11, 99, 10] },
+      { type: 'DeviceNetwork', deviceLists: [99, 10] },
+    ], uidMap);
+    expect(list.devices).toEqual([111, 110]);
+    expect(network.deviceLists).toEqual([110]);
+  });
+
+  it('rekeys linked ports and keeps their port pairs', () => {
+    const [source] = remapEntityReferences([
+      { type: 'DeviceLinkSource', linkedPorts: { 11: [['Pressed', 'Toggle']], 99: [['Pressed', 'Open']] } },
+    ], uidMap);
+    expect(source.linkedPorts).toEqual({ 111: [['Pressed', 'Toggle']] });
+  });
+
+  it('remaps container lists and single slots', () => {
+    const [cc] = remapEntityReferences([{
+      type: 'ContainerContainer',
+      containers: {
+        storagebase: { showEnts: false, ents: [10, 99] },
+        cell_slot: { ent: 11 },
+        id_slot: { ent: 99 },
+        empty_slot: { ent: null },
+      },
+    }], uidMap);
+    expect(cc.containers).toEqual({
+      storagebase: { showEnts: false, ents: [110] },
+      cell_slot: { ent: 111 },
+      id_slot: { ent: null },
+      empty_slot: { ent: null },
+    });
+  });
+
+  it('moves a contained entity to its copied container and leaves a grid parent alone', () => {
+    const [inside] = remapEntityReferences([{ type: 'Transform', parent: 10 }], uidMap);
+    const [onGrid] = remapEntityReferences([{ type: 'Transform', pos: '1.5,1.5', parent: 2 }], uidMap);
+    expect(inside.parent).toBe(110);
+    expect(onGrid.parent).toBe(2);
+  });
+
+  it('does not change the components it was given', () => {
+    const components = [{ type: 'DeviceList', devices: [10, 11] }];
+    remapEntityReferences(components, uidMap);
+    expect(components[0].devices).toEqual([10, 11]);
+  });
+});
+
+describe('copying what entities contain', () => {
+  const entity = (uid: number, prototype: string, components: Record<string, unknown>[]): ImportedEntity =>
+    ({ uid, prototype, position: { x: 0, y: 0 }, rotation: 0, components });
+
+  // A locker (10) holding a toolbox (11) that holds a wrench (12), and an unrelated crate (20).
+  const toolbox = entity(11, 'Toolbox', [
+    { type: 'Transform', parent: 10 },
+    { type: 'ContainerContainer', containers: { storagebase: { ents: [12] } } },
+  ]);
+  const wrench = entity(12, 'Wrench', [{ type: 'Transform', parent: 11 }]);
+  const containedEntities = { 10: [toolbox], 11: [wrench], 20: [entity(21, 'Crowbar', [])] };
+  const locker = entity(10, 'Locker', [
+    { type: 'ContainerContainer', containers: { entity_storage: { ents: [11] } } },
+  ]);
+
+  it('collects contents to any depth and nothing else', () => {
+    expect(collectContained(containedEntities, [10])).toEqual({ 10: [toolbox], 11: [wrench] });
+    expect(collectContained(containedEntities, [5])).toEqual({});
+  });
+
+  it('gives nested contents new UIDs under their copied containers', () => {
+    const { uid: sourceUid, ...rest } = locker;
+    const { entities, containedChanges } = instantiateCopies(
+      [{ sourceUid, entity: rest }], collectContained(containedEntities, [10]), 100);
+
+    expect(entities.map(e => e.uid)).toEqual([100]);
+    expect((entities[0].components[0] as any).containers.entity_storage.ents).toEqual([101]);
+    expect(containedChanges.map(c => [c.action, c.parentUid, c.entity.uid, c.entity.prototype])).toEqual([
+      ['add', 100, 101, 'Toolbox'],
+      ['add', 101, 102, 'Wrench'],
+    ]);
+    expect(containedChanges[0].entity.components).toEqual([
+      { type: 'Transform', parent: 100 },
+      { type: 'ContainerContainer', containers: { storagebase: { ents: [102] } } },
+    ]);
+    expect(containedChanges[1].entity.components).toEqual([{ type: 'Transform', parent: 101 }]);
+  });
+
+  it('drops references when the source UID is unknown', () => {
+    const { uid: _uid, ...rest } = locker;
+    const { entities, containedChanges } = instantiateCopies([{ entity: rest }], undefined, 100);
+
+    expect((entities[0].components[0] as any).containers.entity_storage.ents).toEqual([]);
+    expect(containedChanges).toEqual([]);
   });
 });

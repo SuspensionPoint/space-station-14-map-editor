@@ -76,6 +76,13 @@ function applyContainedEntityChanges(
   return result;
 }
 
+/** Whether any of an entity's containers already holds the given UID. */
+function containerLists(entity: ImportedEntity, uid: number): boolean {
+  const cc = entity.components.find(c => c.type === 'ContainerContainer') as any;
+  return Object.values(cc?.containers ?? {}).some((container: any) =>
+    container?.ent === uid || (Array.isArray(container?.ents) && container.ents.includes(uid)));
+}
+
 /** Sync legacy alias fields from the active grid. */
 function syncLegacyFields(state: EditorState): EditorState {
   const active = getActiveGrid(state.grids, state.activeGridIndex);
@@ -106,6 +113,10 @@ function applyCommand(state: EditorState, command: Command): EditorState {
   // Batch: collect all remove UIDs into a Set and all adds into an array
   const removeUids = new Set<number>();
   const addEntities: ImportedEntity[] = [];
+  const addUids = new Set<number>();
+  for (const ec of command.entityChanges) {
+    if (ec.action === 'add') addUids.add(ec.entity.uid);
+  }
 
   for (const ec of command.entityChanges) {
     if (ec.action === 'add') {
@@ -115,6 +126,8 @@ function applyCommand(state: EditorState, command: Command): EditorState {
       }
     } else {
       removeUids.add(ec.entity.uid);
+      // An entity added back under the same UID was edited in place and keeps its contents
+      if (addUids.has(ec.entity.uid)) continue;
       // Cascade: if removing a container entity, record its contained entities for undo
       const contained = targetGrid.containedEntities[ec.entity.uid];
       if (contained && contained.length > 0) {
@@ -150,9 +163,12 @@ function applyCommand(state: EditorState, command: Command): EditorState {
 
   // Update parent entity ContainerContainer ents for contained entity changes
   for (const cec of command.containedEntityChanges ?? []) {
+    if (cec.entity.uid >= nextEntityId) nextEntityId = cec.entity.uid + 1;
     const pIdx = entities.findIndex(e => e.uid === cec.parentUid);
     if (pIdx < 0) continue;
     const parent = entities[pIdx];
+    // A pasted container already lists its contents
+    if (cec.action === 'add' && containerLists(parent, cec.entity.uid)) continue;
     const newComponents = parent.components.map(c => ({ ...c }));
     let ccIdx = newComponents.findIndex((c: any) => c.type === 'ContainerContainer');
     if (cec.action === 'add') {
@@ -177,7 +193,6 @@ function applyCommand(state: EditorState, command: Command): EditorState {
       newComponents[ccIdx] = cc;
     }
     entities[pIdx] = { ...parent, components: newComponents };
-    if (cec.entity.uid >= nextEntityId) nextEntityId = cec.entity.uid + 1;
   }
 
   // Process decal changes
