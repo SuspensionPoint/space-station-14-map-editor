@@ -21,6 +21,34 @@ export function deriveCategory(filePath: string): string {
   return 'Other';
 }
 
+interface VariantList {
+  values?: unknown[];
+  sequences?: unknown[];
+}
+
+function isVariantList(node: unknown): node is VariantList {
+  return typeof node === 'object' && node !== null && (node as { _ss14Tag?: string })._ss14Tag === '!type:CreateVariants';
+}
+
+function pickVariant(node: unknown, index: number): unknown {
+  if (isVariantList(node)) return (node.values ?? node.sequences)?.[index];
+  if (Array.isArray(node)) return node.map(item => pickVariant(item, index));
+  if (typeof node === 'object' && node !== null) {
+    return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, pickVariant(value, index)]));
+  }
+  return node;
+}
+
+/**
+ * Some forks declare several prototypes in one entry: `id` and any field that differs
+ * hold a CreateVariants list with one value per prototype.
+ */
+function expandVariants<T extends { id: unknown }>(entry: T): T[] {
+  const ids = entry.id;
+  if (!isVariantList(ids)) return [entry];
+  return (ids.values ?? []).map((_, index) => pickVariant(entry, index) as T);
+}
+
 /** Parse a YAML string containing prototype definitions. */
 export function parsePrototypeYaml(yamlContent: string, filePath: string): ParsedPrototypes {
   const docs = yaml.loadAll(yamlContent, undefined, { schema: SS14_SCHEMA }) as unknown[];
@@ -30,14 +58,16 @@ export function parsePrototypeYaml(yamlContent: string, filePath: string): Parse
 
   for (const doc of docs) {
     if (!Array.isArray(doc)) continue;
-    for (const entry of doc) {
-      if (!entry || typeof entry !== 'object' || !('type' in entry) || !('id' in entry)) continue;
-      if (entry.type === 'tile') {
-        tiles.push(entry as RawTilePrototype);
-      } else if (entry.type === 'entity') {
-        entities.push(entry as RawEntityPrototype);
-      } else if (entry.type === 'decal') {
-        decals.push(entry as RawDecalPrototype);
+    for (const declared of doc) {
+      if (!declared || typeof declared !== 'object' || !('type' in declared) || !('id' in declared)) continue;
+      for (const entry of expandVariants(declared)) {
+        if (entry.type === 'tile') {
+          tiles.push(entry as RawTilePrototype);
+        } else if (entry.type === 'entity') {
+          entities.push(entry as RawEntityPrototype);
+        } else if (entry.type === 'decal') {
+          decals.push(entry as RawDecalPrototype);
+        }
       }
     }
   }

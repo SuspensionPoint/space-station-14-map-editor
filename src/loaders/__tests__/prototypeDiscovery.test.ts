@@ -72,4 +72,44 @@ describe('parsePrototypeYaml', () => {
     expect(result.tiles).toHaveLength(0);
     expect(result.entities).toHaveLength(0);
   });
+
+  it('makes one entity for each id of a CreateVariants entry', () => {
+    const yaml = `
+- type: entity
+  id: !type:CreateVariants
+    values:
+    - ClownCollarPDA
+    - MimeCollarPDA
+  parent: !type:CreateVariants
+    sequences:
+    - [ DogCollarMixin, ClownPDA ]
+    - [ DogCollarMixin, MimePDA ]
+  name: !type:CreateVariants
+    values: [ clown collar, mime collar ]
+  components:
+  - type: Sprite
+    sprite: Objects/Devices/collar.rsi
+    layers:
+    - state: !type:CreateVariants
+        values: [ clown, mime ]
+    - state: light
+`;
+    const result = parsePrototypeYaml(yaml, '/Prototypes/_Fork/Entities/Objects/Devices/collars.yml');
+    expect(result.entities).toEqual([
+      {
+        type: 'entity',
+        id: 'ClownCollarPDA',
+        parent: ['DogCollarMixin', 'ClownPDA'],
+        name: 'clown collar',
+        components: [{ type: 'Sprite', sprite: 'Objects/Devices/collar.rsi', layers: [{ state: 'clown' }, { state: 'light' }] }],
+      },
+      {
+        type: 'entity',
+        id: 'MimeCollarPDA',
+        parent: ['DogCollarMixin', 'MimePDA'],
+        name: 'mime collar',
+        components: [{ type: 'Sprite', sprite: 'Objects/Devices/collar.rsi', layers: [{ state: 'mime' }, { state: 'light' }] }],
+      },
+    ]);
+  });
 });
