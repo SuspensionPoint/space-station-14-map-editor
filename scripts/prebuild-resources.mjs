@@ -18,6 +18,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { listPrototypeFiles } from './prototypeManifests.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -37,20 +38,6 @@ const TEXTURE_SETS = {
 };
 
 // ---- Helpers ----
-
-function walkDir(dir, ext) {
-  const results = [];
-  if (!fs.existsSync(dir)) return results;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...walkDir(full, ext));
-    } else if (entry.name.endsWith(ext)) {
-      results.push(full);
-    }
-  }
-  return results;
-}
 
 function copyDirRecursive(src, dest) {
   if (!fs.existsSync(src)) {
@@ -108,52 +95,19 @@ fs.mkdirSync(publicResources, { recursive: true });
 // Step 1: Generate prototype manifests
 console.log('Step 1: Generating prototype manifests...');
 
-const tileDir = path.join(resourcesRoot, 'Prototypes/Tiles');
-const entityDir = path.join(resourcesRoot, 'Prototypes/Entities');
-const catalogDir = path.join(resourcesRoot, 'Prototypes/Catalog');
-const decalDir = path.join(resourcesRoot, 'Prototypes/Decals');
-
-const tileFiles = walkDir(tileDir, '.yml').map(f =>
-  '/' + path.relative(resourcesRoot, f).replace(/\\/g, '/')
-);
-const entityFiles = walkDir(entityDir, '.yml').map(f =>
-  '/' + path.relative(resourcesRoot, f).replace(/\\/g, '/')
-);
-const catalogFiles = walkDir(catalogDir, '.yml').map(f =>
-  '/' + path.relative(resourcesRoot, f).replace(/\\/g, '/')
-);
-const decalFiles = walkDir(decalDir, '.yml').map(f =>
-  '/' + path.relative(resourcesRoot, f).replace(/\\/g, '/')
-);
-
-// Also scan fork Catalog and Decals directories (any leading-underscore fork dir)
-const forkCatalogFiles = [];
-const forkDecalFiles = [];
-const forkPrefixes = [];
-const prototypesDir = path.join(resourcesRoot, 'Prototypes');
-for (const entry of fs.readdirSync(prototypesDir, { withFileTypes: true })) {
-  if (entry.isDirectory() && entry.name.startsWith('_')) {
-    forkPrefixes.push(entry.name);
-    const forkCatalog = path.join(prototypesDir, entry.name, 'Catalog');
-    const files = walkDir(forkCatalog, '.yml').map(f =>
-      '/' + path.relative(resourcesRoot, f).replace(/\\/g, '/')
-    );
-    forkCatalogFiles.push(...files);
-
-    const forkDecals = path.join(prototypesDir, entry.name, 'Decals');
-    const dFiles = walkDir(forkDecals, '.yml').map(f =>
-      '/' + path.relative(resourcesRoot, f).replace(/\\/g, '/')
-    );
-    forkDecalFiles.push(...dFiles);
-  }
-}
+const { forkPrefixes, base, fork } = listPrototypeFiles(resourcesRoot);
+const manifests = {
+  tiles: [...base.tiles, ...fork.tiles],
+  entities: [...base.entities, ...fork.entities],
+  catalog: [...base.catalog, ...fork.catalog],
+  decals: [...base.decals, ...fork.decals],
+};
 
 const manifestDir = path.join(publicResources, '_manifests');
 fs.mkdirSync(manifestDir, { recursive: true });
-fs.writeFileSync(path.join(manifestDir, 'tiles.json'), JSON.stringify(tileFiles));
-fs.writeFileSync(path.join(manifestDir, 'entities.json'), JSON.stringify(entityFiles));
-fs.writeFileSync(path.join(manifestDir, 'catalog.json'), JSON.stringify([...catalogFiles, ...forkCatalogFiles]));
-fs.writeFileSync(path.join(manifestDir, 'decals.json'), JSON.stringify([...decalFiles, ...forkDecalFiles]));
+for (const [name, files] of Object.entries(manifests)) {
+  fs.writeFileSync(path.join(manifestDir, `${name}.json`), JSON.stringify(files));
+}
 
 // Determine the built-in fork name shown in the UI. Prefer an explicit --fork-name;
 // otherwise auto-detect when there is exactly one fork directory (e.g. _MyFork ->
@@ -162,16 +116,15 @@ const builtInForkName = forkNameArg
   ?? (forkPrefixes.length === 1 ? forkPrefixes[0].replace(/^_/, '') : 'Built-in');
 fs.writeFileSync(path.join(manifestDir, 'fork.json'), JSON.stringify({ name: builtInForkName }));
 console.log(`  Built-in fork name: ${builtInForkName}`);
-console.log(`  Tile prototypes: ${tileFiles.length} files`);
-console.log(`  Entity prototypes: ${entityFiles.length} files`);
-console.log(`  Catalog prototypes: ${catalogFiles.length + forkCatalogFiles.length} files (${catalogFiles.length} base + ${forkCatalogFiles.length} fork)`);
-console.log(`  Decal prototypes: ${decalFiles.length + forkDecalFiles.length} files (${decalFiles.length} base + ${forkDecalFiles.length} fork)`);
+for (const [label, kind] of [['Tile', 'tiles'], ['Entity', 'entities'], ['Catalog', 'catalog'], ['Decal', 'decals']]) {
+  console.log(`  ${label} prototypes: ${manifests[kind].length} files (${base[kind].length} base + ${fork[kind].length} fork)`);
+}
 
 // Step 2: Copy prototype YAML files
 console.log('\nStep 2: Copying prototype files...');
 
 let protoCount = 0;
-for (const relPath of [...tileFiles, ...entityFiles, ...catalogFiles, ...forkCatalogFiles, ...decalFiles, ...forkDecalFiles]) {
+for (const relPath of Object.values(manifests).flat()) {
   const src = path.join(resourcesRoot, relPath);
   const dest = path.join(publicResources, relPath);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
