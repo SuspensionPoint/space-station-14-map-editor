@@ -1,3 +1,5 @@
+import type { ImportedEntity } from '../import/mapImporter';
+
 /** A sparse tile entry, only non-Space tiles are stored. */
 export interface PrefabTile {
   dx: number;
@@ -7,6 +9,8 @@ export interface PrefabTile {
 
 /** An entity stored relative to the prefab's top-left corner. */
 export interface PrefabEntity {
+  /** UID the entity had in the map the prefab was saved from. Absent in older files. */
+  uid?: number;
   dx: number;
   dy: number;
   prototype: string;
@@ -33,5 +37,7 @@ export interface PrefabData {
   height: number;
   tiles: PrefabTile[];
   entities: PrefabEntity[];
+  /** What the entities contain, keyed by the container's `uid`. Absent in older files. */
+  contained?: Record<number, ImportedEntity[]>;
   deviceLinks: PrefabDeviceLink[];
 }

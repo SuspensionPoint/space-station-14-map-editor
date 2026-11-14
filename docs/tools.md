@@ -102,9 +102,9 @@ interface ToolContext {
 - **Behavior**: Click and drag to create a selection (marching ants border). Captures both tiles AND entities within selected tiles. Supports:
   - **Ctrl+C**, Copy tiles + entities to clipboard
   - **Ctrl+X**, Cut (copy + clear tiles to Space + remove entities)
-  - **Ctrl+V**, Paste (enters paste mode, click to place). Pasted entities get new UIDs.
+  - **Ctrl+V**, Paste (enters paste mode, click to place). Pasted entities get new UIDs. Device links between them point at the copies, links to anything outside the copied set are dropped, and container contents are copied too.
   - **Delete/Backspace**, Clear tiles to Space + remove entities in selection
-  - **Move**, Click inside an existing selection and drag to move the entire region (tiles + entities). Commits on mouse-up as a single undoable command. Entities get new UIDs at the destination.
+  - **Move**, Click inside an existing selection and drag to move the entire region (tiles + entities). Commits on mouse-up as a single undoable command. Entities keep their UIDs, so device links and container contents move with them.
 - **Modifier keys during box select:**
   - **Shift+drag**: Add box contents to existing selection (green marquee). Build up complex non-rectangular shapes.
   - **Ctrl+drag**: Remove box contents from existing selection (red marquee). Carve out areas you don't want.

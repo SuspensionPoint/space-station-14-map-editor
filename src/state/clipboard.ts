@@ -30,6 +30,8 @@ export interface ClipboardData {
   height: number;
   tiles: (TileCell | null)[];  // row-major, null = empty/space
   entities: ClipboardEntity[];
+  /** What the copied entities contain, keyed by the UID of the container. */
+  contained?: Record<number, ImportedEntity[]>;
   decals?: ClipboardDecal[];
   originX: number; // world coords of top-left when copied
   originY: number;

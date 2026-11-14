@@ -7,7 +7,7 @@ import type { TileGrid, TileChange, EntityChange, Command, TileCell } from '../t
 import type { ImportedEntity } from '../import/mapImporter';
 import type { PrefabData } from './prefabTypes';
 import { getCell } from '../state/editorState';
-import { cloneComponentsWithPosRot } from '../tools/entityHelpers';
+import { cloneComponentsWithPosRot, instantiateCopies } from '../tools/entityHelpers';
 
 export interface PlacePrefabInput {
   prefab: PrefabData;
@@ -62,32 +62,28 @@ export function placePrefab(input: PlacePrefabInput): PlacePrefabResult {
     }
   }
 
-  // 3. Entity additions, assign fresh UIDs
-  const entityAdditions: EntityChange[] = [];
+  // 3. Entity additions, assign fresh UIDs and link the placed entities to each other
   const rawComponentsMap: Record<number, string[]> = {};
-  let uid = nextEntityId;
+  const copies = instantiateCopies(prefab.entities.map(pe => {
+    const newPos = { x: placeX + pe.dx + 0.5, y: placeY + pe.dy + 0.5 };
+    return {
+      sourceUid: pe.uid,
+      entity: {
+        prototype: pe.prototype,
+        position: newPos,
+        rotation: pe.rotation,
+        components: cloneComponentsWithPosRot(pe.components, newPos, pe.rotation),
+        ...(pe.spriteStateOverride ? { spriteStateOverride: pe.spriteStateOverride } : {}),
+      },
+    };
+  }), prefab.contained, nextEntityId);
+  const entityAdditions: EntityChange[] = copies.entities.map(entity => ({ action: 'add', entity }));
+
+  // Note: raw YAML lines from the prefab template are NOT preserved here because
+  // entity positions have changed, the exporter must re-serialize from components
 
   // Map from prefab entity index to new UID for device link resolution
-  const indexToUid: number[] = [];
-
-  for (const pe of prefab.entities) {
-    const newUid = uid++;
-    indexToUid.push(newUid);
-
-    const newPos = { x: placeX + pe.dx + 0.5, y: placeY + pe.dy + 0.5 };
-    const newEntity: ImportedEntity = {
-      uid: newUid,
-      prototype: pe.prototype,
-      position: newPos,
-      rotation: pe.rotation,
-      components: cloneComponentsWithPosRot(pe.components, newPos, pe.rotation),
-      ...(pe.spriteStateOverride ? { spriteStateOverride: pe.spriteStateOverride } : {}),
-    };
-    entityAdditions.push({ action: 'add', entity: newEntity });
-
-    // Note: raw YAML lines from the prefab template are NOT preserved here because
-    // entity positions have changed, the exporter must re-serialize from components
-  }
+  const indexToUid = copies.entities.map(e => e.uid);
 
   // 5. Device link resolution
   const resolvedDeviceLinks: ResolvedDeviceLink[] = prefab.deviceLinks.map((dl) => ({
@@ -102,12 +98,13 @@ export function placePrefab(input: PlacePrefabInput): PlacePrefabResult {
     label: `Place prefab "${prefab.name}"`,
     tileChanges,
     entityChanges: [...entityRemovals, ...entityAdditions],
+    containedEntityChanges: copies.containedChanges.length > 0 ? copies.containedChanges : undefined,
   };
 
   return {
     command,
     rawComponentsMap,
     resolvedDeviceLinks,
-    nextEntityId: uid,
+    nextEntityId: nextEntityId + copies.entities.length + copies.containedChanges.length,
   };
 }
