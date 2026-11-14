@@ -106,6 +106,10 @@ function applyCommand(state: EditorState, command: Command): EditorState {
   // Batch: collect all remove UIDs into a Set and all adds into an array
   const removeUids = new Set<number>();
   const addEntities: ImportedEntity[] = [];
+  const addUids = new Set<number>();
+  for (const ec of command.entityChanges) {
+    if (ec.action === 'add') addUids.add(ec.entity.uid);
+  }
 
   for (const ec of command.entityChanges) {
     if (ec.action === 'add') {
@@ -115,6 +119,8 @@ function applyCommand(state: EditorState, command: Command): EditorState {
       }
     } else {
       removeUids.add(ec.entity.uid);
+      // An entity added back under the same UID was edited in place and keeps its contents
+      if (addUids.has(ec.entity.uid)) continue;
       // Cascade: if removing a container entity, record its contained entities for undo
       const contained = targetGrid.containedEntities[ec.entity.uid];
       if (contained && contained.length > 0) {

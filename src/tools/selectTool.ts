@@ -316,6 +316,7 @@ export class SelectTool implements ITool {
     // Capture entities as relative offsets
     const selEntities = this.getEntitiesInSelection(ctx.state.entities);
     const clipEntities: ClipboardEntity[] = selEntities.map(e => ({
+      uid: e.uid,
       dx: e.position.x - this.selMinX,
       dy: e.position.y - this.selMinY,
       prototype: e.prototype,
@@ -394,13 +395,12 @@ export class SelectTool implements ITool {
       entityChanges.push({ action: 'remove', entity: e });
     }
 
-    // Add rotated entities with new UIDs
-    let nextUid = ctx.state.nextEntityId;
+    // Add rotated entities under the same UIDs
     for (const ce of rotated.entities) {
       const newPos = { x: newMinX + ce.dx, y: newMinY + ce.dy };
       const comps = cloneComponentsWithPosRot(ce.components, newPos, ce.rotation);
       const entity: ImportedEntity = {
-        uid: nextUid++,
+        uid: ce.uid!,
         prototype: ce.prototype,
         position: newPos,
         rotation: ce.rotation,
@@ -712,12 +712,11 @@ export class SelectTool implements ITool {
       entityChanges.push({ action: 'remove', entity: e });
     }
 
-    // 4. Add entities at new positions with new UIDs
-    let nextUid = ctx.state.nextEntityId;
+    // 4. Add entities at new positions, keeping their UIDs so links and contents still point at them
     for (const e of this.moveSnapshotEntities) {
       const newPos = { x: e.position.x + dx, y: e.position.y + dy };
       const moved: ImportedEntity = {
-        uid: nextUid++,
+        uid: e.uid,
         prototype: e.prototype,
         position: newPos,
         rotation: e.rotation,

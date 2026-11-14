@@ -519,24 +519,20 @@ export class EntitySelectTool implements ITool {
     if (selectedEntities.length === 0 && decalChanges.length === 0) return;
 
     const entityChanges: { action: 'add' | 'remove'; entity: ImportedEntity }[] = [];
-    const newUids: number[] = [];
-    let nextUid = state.nextEntityId;
 
+    // Moved entities keep their UIDs so links and contents still point at them
     for (const entity of selectedEntities) {
-      const newUid = nextUid++;
       const newPos = {
         x: entity.position.x + dx,
         y: entity.position.y + dy,
       };
       const moved: ImportedEntity = {
         ...entity,
-        uid: newUid,
         position: newPos,
         components: updateTransformPos(entity.components, newPos),
       };
       entityChanges.push({ action: 'remove', entity });
       entityChanges.push({ action: 'add', entity: moved });
-      newUids.push(newUid);
     }
 
     const hasDecalMoves = this.moveSnapshotDecals.length > 0;
@@ -557,10 +553,6 @@ export class EntitySelectTool implements ITool {
       command: { label, tileChanges: [], entityChanges, decalChanges: decalChanges.length > 0 ? decalChanges : undefined },
     });
 
-    // Update selection to track the new UIDs (decals keep same IDs via update)
-    if (newUids.length > 0) {
-      ctx.dispatch({ type: 'SELECT_ENTITY', uids: newUids });
-    }
     this.moveSnapshotDecals = [];
     this.lastClickTile = { x: tileX, y: tileY };
   }

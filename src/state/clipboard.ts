@@ -3,6 +3,8 @@ import type { ImportedEntity } from '../import/mapImporter';
 
 /** Entity stored relative to selection origin (dx, dy offsets from originX, originY). */
 export interface ClipboardEntity {
+  /** UID of the entity this was taken from */
+  uid?: number;
   /** Offset from clipboard origin */
   dx: number;
   dy: number;

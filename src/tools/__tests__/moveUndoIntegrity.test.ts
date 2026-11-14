@@ -148,9 +148,9 @@ describe('Move + Undo Integrity', () => {
       tool.onMouseUp(ctx, 8, 8);
 
       // Verify move happened
-      expect(state.entities.find(e => e.uid === 1)).toBeUndefined();
-      expect(state.entities.find(e => e.uid === 2)).toBeUndefined();
-      expect(state.entities).toHaveLength(3); // 2 moved (new UIDs) + e3
+      expect(state.entities.find(e => e.uid === 1)!.position).toEqual({ x: 8.5, y: 8.5 });
+      expect(state.entities.find(e => e.uid === 2)!.position).toEqual({ x: 9.5, y: 8.5 });
+      expect(state.entities).toHaveLength(3); // 2 moved + e3
       expect(state.undoStack).toHaveLength(1);
 
       // Undo
@@ -230,8 +230,8 @@ describe('Move + Undo Integrity', () => {
 
       // Redo
       state = editorReducer(state, { type: 'REDO' });
-      expect(state.entities.find(e => e.uid === 1)).toBeUndefined();
-      expect(state.entities.find(e => e.uid === 2)).toBeUndefined();
+      expect(state.entities.find(e => e.uid === 1)!.position).toEqual({ x: 8.5, y: 8.5 });
+      expect(state.entities.find(e => e.uid === 2)!.position).toEqual({ x: 9.5, y: 8.5 });
       expect(state.entities).toHaveLength(2);
       expect(spatialSize()).toBe(2);
 
@@ -360,8 +360,8 @@ describe('Move + Undo Integrity', () => {
 
       // Verify move happened
       expect(state.undoStack).toHaveLength(1);
-      expect(state.entities.find(e => e.uid === 10)).toBeUndefined();
-      expect(state.entities.find(e => e.uid === 11)).toBeUndefined();
+      expect(state.entities.find(e => e.uid === 10)!.position).toEqual({ x: 5.5, y: 6.5 });
+      expect(state.entities.find(e => e.uid === 11)!.position).toEqual({ x: 6.5, y: 7.5 });
 
       // Source tiles should be Space now
       expect(getCell(state.grid, 3, 3)!.tileId).toBe('Space');
